@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import yfinance as yf
 import google.generativeai as genai
-import time
 
 # ページ設定
 st.set_page_config(page_title="プロの投資意図ダッシュボード", layout="wide")
@@ -12,30 +11,25 @@ st.title("🎯 プロの投資意図ダッシュボード")
 genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 model = genai.GenerativeModel("gemini-1.5-flash")
 
-# --- 1. エクセルデータの読み込みと株価の自動計算（キャッシュで高速化） ---
-@st.cache_data(ttl=3600) # 1時間に1回だけ読み込み直す（動作を軽くするため）
+# --- 1. エクセルデータの読み込みと株価の自動計算 ---
+@st.cache_data(ttl=3600)
 def load_and_calculate():
-    # エクセルの読み込み
     try:
         df = pd.read_excel("target_list.xlsx")
     except Exception as e:
         st.error("エクセルファイル（target_list.xlsx）が見つからないか、読み込めません。")
         return pd.DataFrame()
 
-    # yfinance用に銘柄コードを「1234.T」の形に変換
     tickers = [f"{str(code).strip()}.T" for code in df['銘柄コード']]
     
-    # 過去7日分のデータを一括取得
     with st.spinner("最新の株価データを取得中..."):
         data = yf.download(tickers, period="7d", group_by='ticker', progress=False)
 
-    current_prices, diff_amounts, diff_percents = [], [], []
+    current_prices, diff_amounts, diff_percents, histories = [], [], [], []
 
-    # 各銘柄の増減を計算
     for code in df['銘柄コード']:
         ticker = f"{code}.T"
         try:
-            # 終値（Close）のデータを取得
             if len(tickers) == 1:
                 hist = data['Close'].dropna()
             else:
@@ -43,25 +37,30 @@ def load_and_calculate():
                 
             if len(hist) >= 2:
                 current = float(hist.iloc[-1])
-                past = float(hist.iloc[0]) # 約7日前の価格
+                past = float(hist.iloc[0])
                 diff = current - past
                 pct = (diff / past) * 100
+                # 7日間の日々の価格をリストにまとめる（ミニグラフ用）
+                hist_list = hist.tolist() 
             else:
-                current, diff, pct = 0.0, 0.0, 0.0
+                current, diff, pct, hist_list = 0.0, 0.0, 0.0, []
         except:
-            current, diff, pct = 0.0, 0.0, 0.0
+            current, diff, pct, hist_list = 0.0, 0.0, 0.0, []
             
         current_prices.append(round(current, 1))
         diff_amounts.append(round(diff, 1))
         diff_percents.append(round(pct, 2))
+        histories.append(hist_list)
 
-    # 計算結果をデータフレームに追加
     df['現在値(円)'] = current_prices
     df['7日増減額'] = diff_amounts
     df['7日増減率(%)'] = diff_percents
+    df['7日間の推移'] = histories # ミニグラフ用のデータを追加
 
-    # 画面表示用に列の順番を整理
-    display_df = df[['銘柄コード', '企業名', '取得日', '取得時の状況', '現在値(円)', '7日増減額', '7日増減率(%)']]
+    # 取得日の 00:00:00 を消して日付だけにする
+    df['取得日'] = pd.to_datetime(df['取得日']).dt.strftime('%Y-%m-%d')
+
+    display_df = df[['銘柄コード', '企業名', '取得日', '取得時の状況', '現在値(円)', '7日増減額', '7日増減率(%)', '7日間の推移']]
     return display_df
 
 # --- 2. 画面上部：一覧表の表示 ---
@@ -71,26 +70,29 @@ st.write("IR BANKの取得履歴と直近1週間の株価変動（一時的な�
 df_display = load_and_calculate()
 
 if not df_display.empty:
-    # データフレームを画面に表示（列をクリックして並べ替え可能）
+    # 表の中にミニグラフを表示する設定を追加
     st.dataframe(
         df_display, 
         use_container_width=True,
-        hide_index=True
+        hide_index=True,
+        column_config={
+            "7日間の推移": st.column_config.LineChartColumn(
+                "7日間の推移",
+                help="直近7日間の株価の動き"
+            )
+        }
     )
 
     # --- 3. 画面下部：AI深掘り分析 ---
     st.divider()
     st.subheader("💡 気になる銘柄をAIで深掘り（プロ視点）")
     
-    # セレクトボックスで表の中から銘柄を選択
     company_options = df_display['企業名'].tolist()
     selected_company = st.selectbox("分析したい企業を選択してください", company_options)
     
     if st.button("AI分析を実行する"):
-        # 選択された企業のデータを抽出
         target_row = df_display[df_display['企業名'] == selected_company].iloc[0]
         
-        # AIへ投げる指示書（プロンプト）
         prompt = f"""
         あなたは機関投資家や事業会社の動向を分析するプロの株式アナリストです。
         以下の企業について、プロが大量保有（買い増し）した意図と、現在の株価下落が「買い場」かどうかを分析してください。
@@ -112,4 +114,5 @@ if not df_display.empty:
                 st.success("分析完了")
                 st.write(response.text)
             except Exception as e:
-                st.error("AI分析中にエラーが発生しました。")
+                # エラーの原因を具体的に画面に出力させる
+                st.error(f"AI分析中にエラーが発生しました。詳細: {e}")
