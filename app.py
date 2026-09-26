@@ -73,7 +73,7 @@ st.divider()
 st.subheader("💡 投資意図のAI分析（プロ目線）")
 
 # ▼▼▼ あなたの「AQ.」から始まる正しいAPIキーを貼り付けてください ▼▼▼
-GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]'
+GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
 # ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
 if GOOGLE_API_KEY != 'ここに取得したAPIキーを貼り付けてください':
