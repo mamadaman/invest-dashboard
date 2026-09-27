@@ -251,4 +251,8 @@ if not df_display.empty:
                 st.success("分析完了")
                 st.write(response.text)
             except Exception as e:
-                st.error(f"AI分析中にエラーが発生しました。詳細: {e}")
+                error_msg = str(e)
+                if "429" in error_msg or "Quota" in error_msg:
+                    st.warning("⚠️ APIの無料枠制限（1分間に5回まで）に達しました。約1分ほど待ってから、再度「AI分析を実行する」ボタンを押してください。")
+                else:
+                    st.error(f"AI分析中にエラーが発生しました。詳細: {e}")
