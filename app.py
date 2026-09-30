@@ -70,8 +70,8 @@ def load_and_calculate():
 
     try:
         df = pd.read_csv(csv_url).fillna("")
-    except Exception:
-        st.error("スプレッドシートの読み込みに失敗しました。")
+    except Exception as e:
+        st.error(f"スプレッドシートの読み込みに失敗しました。詳細: {e}")
         return pd.DataFrame()
 
     # スプレッドシートの銘柄に、日経平均とTOPIX連動ETFを追加
@@ -195,8 +195,8 @@ if not df_display.empty:
                 if not hist_1y.empty:
                     st.write("📈 **過去1年間の株価推移**")
                     st.line_chart(hist_1y['Close'])
-            except:
-                st.warning("チャートデータが取得できませんでした。")
+            except Exception as e:
+                st.warning(f"チャートデータの取得に失敗しました: {e}")
 
             try:
                 info = yf.Ticker(ticker_symbol).info
@@ -207,7 +207,8 @@ if not df_display.empty:
                 per_str = f"{round(per, 1)}倍" if isinstance(per, (int, float)) else "データなし"
                 pbr_str = f"{round(pbr, 2)}倍" if isinstance(pbr, (int, float)) else "データなし"
                 div_yield_str = f"{round(div_yield * 100, 2)}%" if isinstance(div_yield, (int, float)) else "データなし"
-            except:
+            except Exception as e:
+                st.warning(f"Yahoo Financeからの指標取得エラー: {e}")
                 per_str, pbr_str, div_yield_str = "データなし", "データなし", "データなし"
 
         cols = st.columns(3)
@@ -251,8 +252,5 @@ if not df_display.empty:
                 st.success("分析完了")
                 st.write(response.text)
             except Exception as e:
-                error_msg = str(e)
-                if "429" in error_msg or "Quota" in error_msg:
-                    st.warning("⚠️ APIの無料枠制限（1分間に5回まで）に達しました。約1分ほど待ってから、再度「AI分析を実行する」ボタンを押してください。")
-                else:
-                    st.error(f"AI分析中にエラーが発生しました。詳細: {e}")
+                # 独自のエラー文ではなく、システムからのエラー詳細をそのまま赤色で表示させる
+                st.error(f"🔴 AIエラー詳細: {str(e)}")
