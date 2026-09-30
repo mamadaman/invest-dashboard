@@ -206,7 +206,15 @@ if not df_display.empty:
                 
                 per_str = f"{round(per, 1)}倍" if isinstance(per, (int, float)) else "データなし"
                 pbr_str = f"{round(pbr, 2)}倍" if isinstance(pbr, (int, float)) else "データなし"
-                div_yield_str = f"{round(div_yield * 100, 2)}%" if isinstance(div_yield, (int, float)) else "データなし"
+                
+                # --- [修正箇所] 配当利回りの計算バグを修正 ---
+                if isinstance(div_yield, (int, float)):
+                    # yfinanceが0.025(小数)で返す場合と、2.5(%)で返す場合の両方に対応
+                    dy = div_yield * 100 if div_yield < 1 else div_yield
+                    div_yield_str = f"{round(dy, 2)}%"
+                else:
+                    div_yield_str = "データなし"
+                # ---------------------------------------------
             except Exception as e:
                 st.warning(f"Yahoo Financeからの指標取得エラー: {e}")
                 per_str, pbr_str, div_yield_str = "データなし", "データなし", "データなし"
